@@ -164,4 +164,4 @@ cython_debug/
 *.iml
 uv.lock
 .langgraph_api/
-app/db/
+app/db/*.db

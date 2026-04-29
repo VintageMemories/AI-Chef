@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>AI 私厨</title>
+    <style>
+        /* ═══════════════ 颜色变量 ═══════════════ */
+        :root {
+            --bg: #fdf8f4;                /* 页面背景 */
+            --card: #ffffff;              /* 卡片背景 */
+            --primary: #e8785a;           /* 主色 */
+            --primary-hover: #d06548;     /* 主色悬停 */
+            --primary-light: #fff3ef;     /* 主色浅色 */
+            --text: #3b2823;              /* 主文字 */
+            --text-secondary: #8b756e;    /* 次要文字 */
+            --border: #efe3db;            /* 边框 */
+            --shadow-sm: 0 1px 2px rgba(60,30,20,0.04);
+            --shadow-md: 0 4px 20px rgba(60,30,20,0.07);
+            --radius: 20px;               /* 大圆角 */
+            --radius-sm: 12px;            /* 小圆角 */
+            --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* ═══════════════ 基础重置 ═══════════════ */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: var(--text);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ═══════════════ 装饰光晕 ═══════════════ */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -120px;
+            right: -80px;
+            width: 280px;
+            height: 280px;
+            background: radial-gradient(circle, rgba(232,120,90,0.08) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 0;
+        }
+        body::after {
+            content: '';
+            position: fixed;
+            bottom: -100px;
+            left: -60px;
+            width: 240px;
+            height: 240px;
+            background: radial-gradient(circle, rgba(200,160,120,0.06) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ═══════════════ 主容器 ═══════════════ */
+        .app {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 720px;
+            height: min(92vh, 880px);
+            background: var(--card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-md), var(--shadow-sm);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        /* ═══════════════ 顶部栏 ═══════════════ */
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            background: var(--card);
+            flex-shrink: 0;
+        }
+        .header-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #f9a88b, #e8785a);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            box-shadow: 0 2px 8px rgba(232,120,90,0.25);
+            flex-shrink: 0;
+        }
+        .header-info h1 {
+            font-size: 17px;
+            font-weight: 650;
+            letter-spacing: -0.2px;
+            line-height: 1.2;
+        }
+        .header-info span {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        /* ═══════════════ 消息区域 ═══════════════ */
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            background: #fefcf9;
+            scroll-behavior: smooth;
+        }
+        /* 滚动条美化 */
+        .messages::-webkit-scrollbar { width: 4px; }
+        .messages::-webkit-scrollbar-track { background: transparent; }
+        .messages::-webkit-scrollbar-thumb { background: #e5d9d2; border-radius: 8px; }
+
+        /* ═══════════════ 单条消息 ═══════════════ */
+        .msg {
+            display: flex;
+            gap: 10px;
+            max-width: 88%;
+            animation: msgIn 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+        }
+        @keyframes msgIn {
+            from { opacity: 0; transform: translateY(10px) scale(0.98); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+        .msg.assistant { align-self: flex-start; }
+
+        /* 头像 */
+        .avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .msg.user .avatar   { background: #ffe8df; }
+        .msg.assistant .avatar { background: #fef5ef; }
+
+        /* 气泡 */
+        .bubble {
+            padding: 12px 16px;
+            border-radius: 18px;
+            font-size: 14px;
+            line-height: 1.6;
+            word-break: break-word;
+            position: relative;
+        }
+        .msg.user .bubble {
+            background: var(--primary);
+            color: #fff;
+            border-bottom-right-radius: 6px;
+            box-shadow: 0 2px 8px rgba(232,120,90,0.2);
+        }
+        .msg.assistant .bubble {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-bottom-left-radius: 6px;
+            box-shadow: var(--shadow-sm);
+        }
+        /* 气泡中的图片 */
+        .msg .bubble img {
+            max-width: 200px;
+            border-radius: 10px;
+            display: block;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: var(--transition);
+            background: #f5f0ed;
+            min-height: 40px;
+        }
+        .msg .bubble img:hover { opacity: 0.85; }
+        .msg .bubble img[src=""],
+        .msg .bubble img:not([src]) {
+            display: none;
+        }
+        /* 气泡中的富文本 */
+        .msg .bubble strong { color: var(--primary); font-weight: 600; }
+        .msg .bubble em     { color: #c4947a; }
+        .msg .bubble code   {
+            background: #fff3ef;
+            padding: 2px 6px;
+            border-radius: 5px;
+            font-size: 13px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+        .msg .bubble pre {
+            background: #fdf8f4;
+            padding: 10px 14px;
+            border-radius: 10px;
+            overflow-x: auto;
+            margin: 8px 0;
+            font-size: 12px;
+            border: 1px solid var(--border);
+        }
+
+        /* ═══════════════ 打字动画 ═══════════════ */
+        .typing-dots {
+            display: flex;
+            gap: 5px;
+            padding: 4px 0;
+        }
+        .typing-dots span {
+            width: 7px;
+            height: 7px;
+            background: #d4c3ba;
+            border-radius: 50%;
+            animation: bounce 1.3s infinite;
+        }
+        .typing-dots span:nth-child(2) { animation-delay: 0.18s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.36s; }
+        @keyframes bounce {
+            0%, 70%, 100% { transform: translateY(0); opacity: 0.35; }
+            35% { transform: translateY(-7px); opacity: 1; }
+        }
+
+        /* ═══════════════ 输入区域 ═══════════════ */
+        .input-area {
+            padding: 14px 18px;
+            border-top: 1px solid var(--border);
+            background: var(--card);
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+            flex-shrink: 0;
+        }
+        .input-area textarea {
+            flex: 1;
+            border: 2px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 12px 15px;
+            font-size: 14px;
+            outline: none;
+            resize: none;
+            font-family: inherit;
+            background: #fefcfa;
+            transition: var(--transition);
+            max-height: 110px;
+            line-height: 1.5;
+        }
+        .input-area textarea:focus {
+            border-color: var(--primary);
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(232,120,90,0.08);
+        }
+        .input-area textarea::placeholder { color: #cfc5be; }
+
+        /* ═══════════════ 按钮 ═══════════════ */
+        .btn {
+            border: none;
+            border-radius: var(--radius-sm);
+            padding: 10px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: inherit;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            user-select: none;
+        }
+        .btn:active { transform: scale(0.96); }
+        .btn:disabled { opacity: 0.45; pointer-events: none; }
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+            padding: 12px 22px;
+            box-shadow: 0 2px 8px rgba(232,120,90,0.25);
+            min-width: 64px;
+        }
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px rgba(232,120,90,0.3);
+        }
+        .btn-outline {
+            background: #fff;
+            color: var(--text);
+            border: 2px solid var(--border);
+            font-size: 18px;
+            padding: 8px 14px;
+        }
+        .btn-outline:hover { background: var(--primary-light); border-color: var(--primary); }
+
+        /* ═══════════════ 图片预览小标签 ═══════════════ */
+        .preview-wrap {
+            position: relative;
+            display: inline-flex;
+            flex-shrink: 0;
+        }
+        .preview-wrap img {
+            width: 42px;
+            height: 42px;
+            object-fit: cover;
+            border-radius: 10px;
+            border: 2px solid var(--border);
+        }
+        .preview-wrap .remove-badge {
+            position: absolute;
+            top: -7px;
+            right: -7px;
+            width: 20px;
+            height: 20px;
+            background: #e74c3c;
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            font-size: 11px;
+            cursor: pointer;
+            line-height: 20px;
+            text-align: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+        }
+
+        /* 隐藏文件选择框 */
+        #imageInput { display: none; }
+
+        /* ═══════════════ 欢迎提示 ═══════════════ */
+        .empty-state {
+            margin: auto;
+            text-align: center;
+            color: var(--text-secondary);
+            padding: 24px;
+        }
+        .empty-state .icon { font-size: 52px; margin-bottom: 12px; display: block; }
+        .empty-state h2 { font-size: 16px; margin-bottom: 6px; color: var(--text); }
+        .empty-state p { font-size: 13px; line-height: 1.6; }
+
+        /* ═══════════════ 移动端适配 ═══════════════ */
+        @media (max-width: 520px) {
+            body { padding: 0; }
+            .app { height: 100vh; max-height: none; border-radius: 0; border: none; }
+            .header { padding: 12px 15px; }
+            .messages { padding: 14px 12px; gap: 14px; }
+            .input-area { padding: 10px 12px; gap: 8px; }
+            .msg { max-width: 93%; }
+            .btn-outline { font-size: 17px; padding: 7px 12px; }
+            .btn-primary { padding: 11px 18px; font-size: 13px; }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <!-- ═══════════════ 顶部：厨师头像 + 名字 ═══════════════ -->
+    <div class="header">
+        <div class="header-avatar">👨‍🍳</div>
+        <div class="header-info">
+            <h1>AI 厨师</h1>
+            <span>拍照识别食材 · 智能推荐菜谱</span>
+        </div>
+    </div>
+
+    <!-- ═══════════════ 对话消息列表 ═══════════════ -->
+    <div class="messages" id="messages">
+        <div class="empty-state" id="emptyState">
+            <span class="icon">🥬</span>
+            <h2>今天想吃什么？</h2>
+            <p>拍一张食材照片，或直接告诉厨师你手头有什么<br>比如：西红柿、鸡蛋、豆腐…</p>
+        </div>
+    </div>
+
+    <!-- ═══════════════ 底部输入区 ═══════════════ -->
+    <div class="input-area">
+        <!-- 隐藏的文件选择框：点击拍照按钮时触发 -->
+        <input type="file" id="imageInput" accept="image/*" capture="environment">
+
+        <!-- 拍照按钮：选择图片后只预览，不立刻上传 -->
+        <button class="btn btn-outline" id="cameraBtn" title="拍照/上传食材照片">🖼️</button>
+
+        <!-- 图片缩略图预览：选完图片后显示在这里 -->
+        <div class="preview-wrap" id="previewWrap" style="display:none">
+            <img id="previewImg" src="" alt="预览">
+            <button class="remove-badge" id="removeBadge">×</button>
+        </div>
+
+        <!-- 文字输入框 -->
+        <textarea id="userInput" rows="1" placeholder="输入食材名称…"></textarea>
+
+        <!-- 发送按钮 -->
+        <button class="btn btn-primary" id="sendBtn">
+            <span>发送</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+    </div>
+</div>
+
+<script>
+    // ═══════════════ 全局状态 ═══════════════
+    const threadId = 'thread_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    let pendingFile = null;       // 用户选中的图片文件（等点发送时才上传）
+    let currentImageUrl = null;   // 上传成功后的 OSS 地址
+
+    // ═══════════════ 快捷获取 DOM 元素 ═══════════════
+    const $ = id => document.getElementById(id);
+    const messagesEl = $('messages');
+    const emptyState = $('emptyState');
+    const userInput = $('userInput');
+    const sendBtn = $('sendBtn');
+    const cameraBtn = $('cameraBtn');
+    const imageInput = $('imageInput');
+    const previewWrap = $('previewWrap');
+    const previewImg = $('previewImg');
+    const removeBadge = $('removeBadge');
+
+    // ═══════════════ 工具函数 ═══════════════
+    /** 滚动到消息底部 */
+    function scrollToBottom() {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    /** 隐藏欢迎提示 */
+    function hideEmptyState() {
+        if (emptyState) emptyState.style.display = 'none';
+    }
+
+    /**
+     * 添加一条消息到对话列表
+     * @param {string} role - 'user' 或 'assistant'
+     * @param {string} content - 消息文本（可含 HTML）
+     * @param {string|null} imageUrl - 可选的图片地址
+     * @returns {HTMLElement} 消息的 DOM 元素
+     */
+    function addMessage(role, content, imageUrl = null) {
+        hideEmptyState();
+        const div = document.createElement('div');
+        div.className = `msg ${role}`;
+        // 用户头像用 🧑，厨师头像用 👨‍🍳
+        const avatarEmoji = role === 'user' ? '🧑' : '👨‍🍳';
+        let html = '';
+        if (imageUrl) {
+            html += `<img src="${imageUrl}" alt="食材照片" onclick="window.open('${imageUrl}')" loading="lazy">`;
+        }
+        html += content;
+        div.innerHTML = `
+                <div class="avatar">${avatarEmoji}</div>
+                <div class="bubble">${html}</div>
+            `;
+        messagesEl.appendChild(div);
+        scrollToBottom();
+        return div;
+    }
+
+    /**
+     * 在对话列表末尾添加一个"正在思考"的加载动画
+     * @returns {HTMLElement} 加载消息的 DOM 元素
+     */
+    function addLoadingMessage() {
+        hideEmptyState();
+        const div = document.createElement('div');
+        div.className = 'msg assistant';
+        div.id = 'loadingMsg';
+        div.innerHTML = `
+                <div class="avatar">👨‍🍳</div>
+                <div class="bubble">
+                    <div class="typing-dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            `;
+        messagesEl.appendChild(div);
+        scrollToBottom();
+        return div;
+    }
+
+    /** 移除加载动画 */
+    function removeLoadingMessage() {
+        const el = $('loadingMsg');
+        if (el) el.remove();
+    }
+
+    // ═══════════════ 图片处理 ═══════════════
+    /**
+     * 用户选择图片后触发：只预览，不立刻上传
+     */
+    function handleImageSelect(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // 在输入框旁边显示缩略图预览
+        previewImg.src = URL.createObjectURL(file);
+        previewWrap.style.display = 'inline-flex';
+
+        // 暂存文件，等点发送时再上传
+        pendingFile = file;
+
+        // 清空 input，允许重复选择同一文件
+        event.target.value = '';
+    }
+
+    /** 用户点 × 删除已选的图片 */
+    function removeImage() {
+        pendingFile = null;
+        currentImageUrl = null;
+        previewWrap.style.display = 'none';
+        previewImg.src = '';
+    }
+
+    /**
+     * 上传文件到阿里云 OSS
+     * @param {File} file - 要上传的文件
+     * @returns {Promise<string>} 上传成功后的公开访问 URL
+     */
+    async function uploadToOss(file) {
+        // 生成唯一文件名
+        const ext = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : 'jpg';
+        const filename = `food_${Date.now()}.${ext}`;
+
+        // 第一步：从后端获取预签名上传 URL
+        const res = await fetch(`/api/v1/oss/presign?filename=${encodeURIComponent(filename)}`);
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || errData.error || '获取上传地址失败');
+        }
+        const data = await res.json();
+
+        // 第二步：用预签名 URL 直传文件到 OSS
+        const putRes = await fetch(data.uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': data.contentType },
+            body: file
+        });
+        if (!putRes.ok) throw new Error('文件上传到OSS失败');
+
+        // 返回公开访问地址
+        return data.accessUrl;
+    }
+
+    // ═══════════════ 发送消息 ═══════════════
+    /**
+     * 发送消息的完整流程：
+     * 1. 如果有待上传的图片，先上传到 OSS
+     * 2. 在对话中显示用户消息
+     * 3. 调用流式对话接口，实时显示 AI 厨师的回复
+     */
+    async function sendMessage() {
+        const message = userInput.value.trim();
+        if (!message && !pendingFile) return;
+
+        sendBtn.disabled = true;
+
+        // 上传图片
+        if (pendingFile) {
+            try {
+                currentImageUrl = await uploadToOss(pendingFile);
+            } catch (err) {
+                alert('图片上传失败：' + err.message);
+                sendBtn.disabled = false;
+                return;
+            }
+            pendingFile = null;
+        }
+
+        // 显示用户消息
+        const displayText = message || '看看这些食材能做什么菜？';
+        addMessage('user', displayText, currentImageUrl);
+
+        userInput.value = '';
+        userInput.style.height = 'auto';
+
+        // 先清除预览，但保留 currentImageUrl
+        previewWrap.style.display = 'none';
+        previewImg.src = '';
+
+        addLoadingMessage();
+
+        let fullText = '';
+
+        try {
+            const response = await fetch('/api/v1/chat/stream', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: displayText,
+                    image_url: currentImageUrl || null,  // 正确传递图片 URL
+                    thread_id: threadId
+                })
+            });
+
+            if (!response.ok) throw new Error(`服务返回错误 ${response.status}`);
+
+            removeLoadingMessage();
+
+            const assistantDiv = document.createElement('div');
+            assistantDiv.className = 'msg assistant';
+            assistantDiv.innerHTML = `
+            <div class="avatar">👨‍🍳</div>
+            <div class="bubble" id="streamTarget"></div>
+        `;
+            messagesEl.appendChild(assistantDiv);
+            const contentEl = assistantDiv.querySelector('.bubble');
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const chunk = decoder.decode(value, { stream: true });
+                fullText += chunk;
+                contentEl.innerHTML = formatMarkdown(fullText);
+                scrollToBottom();
+            }
+
+            if (!fullText.trim()) {
+                contentEl.innerHTML = '抱歉厨师暂时没想好，换个食材试试？';
+            }
+
+            contentEl.removeAttribute('id');
+
+        } catch (err) {
+            removeLoadingMessage();
+            addMessage('assistant', `抱歉，厨师暂时不在。<br><small style="color:#b0a098;">${err.message}</small>`);
+        } finally {
+            sendBtn.disabled = false;
+            currentImageUrl = null;
+            userInput.focus();
+        }
+    }
+
+    // ═══════════════ 简易 Markdown 渲染 ═══════════════
+    /**
+     * 把 AI 返回的纯文本转成 HTML
+     * 支持：**粗体** *斜体* `代码` ```代码块```
+     */
+    function formatMarkdown(text) {
+        // 先处理 Markdown 图片语法，把结果存起来
+        let html = text;
+
+        // 收集所有 Markdown 图片
+        const mdImages = [];
+        html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(match, alt, url) {
+            mdImages.push({ placeholder: `__MD_IMG_${mdImages.length}__`, alt, url });
+            return `__MD_IMG_${mdImages.length - 1}__`;
+        });
+
+        // 收集所有纯链接图片
+        const urlImages = [];
+        html = html.replace(/(https?:\/\/\S+\.(?:jpg|jpeg|png|gif|webp)(?:\?\S*)?)/gi, function(match) {
+            urlImages.push({ placeholder: `__URL_IMG_${urlImages.length}__`, url: match });
+            return `__URL_IMG_${urlImages.length - 1}__`;
+        });
+
+        // 现在安全地转义 HTML 特殊字符
+        html = html
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        // 把占位符替换回图片标签
+        mdImages.forEach(function(item) {
+            html = html.replace(
+                item.placeholder,
+                '<img src="' + item.url + '" alt="' + item.alt + '" style="max-width:100%;border-radius:10px;margin:8px 0;" onerror="this.alt=\'图片加载失败\';this.style.display=\'none\';">'
+            );
+        });
+
+        urlImages.forEach(function(item) {
+            html = html.replace(
+                item.placeholder,
+                '<img src="' + item.url + '" alt="菜品图片" style="max-width:100%;border-radius:10px;margin:8px 0;" onerror="this.alt=\'图片加载失败\';this.style.display=\'none\';">'
+            );
+        });
+
+        // 处理标题
+        html = html.replace(/^### (.+)$/gm, '<h3 style="font-size:15px;margin:12px 0 6px;color:#e8785a;">$1</h3>');
+        html = html.replace(/^## (.+)$/gm, '<h2 style="font-size:17px;margin:14px 0 8px;color:#d06548;">$1</h2>');
+        html = html.replace(/^# (.+)$/gm, '<h1 style="font-size:19px;margin:16px 0 10px;color:#c04a35;">$1</h1>');
+
+        // 处理分隔线
+        html = html.replace(/^---$/gm, '<hr style="border:none;border-top:1px solid #efe3db;margin:12px 0;">');
+
+        // 粗斜体
+        html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+        // 粗体
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        // 斜体
+        html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+        // 行内代码
+        html = html.replace(/`(.+?)`/g, '<code>$1</code>');
+        // 代码块
+        html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+        // 换行
+        html = html.replace(/\n/g, '<br>');
+
+        return html;
+    }
+
+    // ═══════════════ 事件绑定 ═══════════════
+    // 拍照按钮 → 触发文件选择
+    cameraBtn.addEventListener('click', () => imageInput.click());
+
+    // 文件选择 → 预览图片
+    imageInput.addEventListener('change', handleImageSelect);
+
+    // 删除预览图片
+    removeBadge.addEventListener('click', removeImage);
+
+    // 发送按钮
+    sendBtn.addEventListener('click', sendMessage);
+
+    // 输入框回车发送（Shift+Enter 换行）
+    userInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    // Ctrl+Enter 也发送
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'Enter') {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    // 输入框自动调整高度
+    userInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 110) + 'px';
+    });
+
+    // ═══════════════ 初始状态 ═══════════════
+    scrollToBottom();
+</script>
+</body>
+</html>
